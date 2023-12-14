@@ -1,5 +1,6 @@
 ﻿using Api.Data;
 using FluentAssertions;
+using FluentAssertions.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,9 +13,37 @@ namespace Api.Tests.Integeration
         {
             //arrange
             var application = new ApplicationSetup();
-           
-            var client = application.CreateClient();
-           
+
+            var client = application.WithWebHostBuilder(builder => 
+            {
+                builder.ConfigureServices(services => 
+                {
+                    var descriptor = services.SingleOrDefault(
+                     d => d.ServiceType == typeof(DbContextOptions<MyDbContext>));
+
+                    bool r = services.Remove(descriptor);
+
+                    services.AddDbContext<MyDbContext>(options =>
+                    {
+                        options.UseInMemoryDatabase("InMemoryDbForTesting");
+                    });
+
+                    var sp = services.BuildServiceProvider();
+
+                    using (var scope = sp.CreateScope())
+                    {
+                        var dbContext = scope.ServiceProvider.GetRequiredService<MyDbContext>();
+
+                        dbContext.Customers.Add(new Customer("ali"));
+                        dbContext.Customers.Add(new Customer("hassan"));
+                        dbContext.Customers.Add(new Customer("hossein"));
+                        dbContext.Customers.Add(new Customer("sajad"));
+                        dbContext.Customers.Add(new Customer("mohammad"));
+                        dbContext.SaveChanges();
+                    }
+                });
+            }).CreateClient();
+
             //act
             
             var response = await client.GetAsync("/customers/getcount");
